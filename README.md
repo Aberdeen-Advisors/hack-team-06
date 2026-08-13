@@ -65,37 +65,30 @@ be re-run from the top; it needs no authentication and returns the record counts
    cannot fill it.
 3. **Change scores and watch the derived values move.** **Workspace › Opportunities**
    (`/workspace/opportunities`) shows the three stored integers (FI / RD / SA) beside the weighted
-   score, band and quadrant that are recomputed from them. Scoring is an API endpoint in this build,
-   not an in-page editor, so rescore OPP-017 from another terminal and refresh the screen:
+   score, band and quadrant that are recomputed from them, with filters for theme, capability area
+   and priority band above the register. Follow the OPP-017 row into its scoring view
+   (`/workspace/opportunities/opp_017`), which prints the full anchor rubric — every 1–5 anchor with
+   its definition, the current score marked on each dimension, and a rationale box beside it. Set
+   Financial Impact to 5, Risk if Deferred to 4 and Strategic Alignment to 4, write a line of
+   rationale for each, and save.
 
-   ```bash
-   curl -c /tmp/liv.txt -X POST localhost:3000/api/auth/login \
-     -H 'content-type: application/json' \
-     -d '{"email":"liv@aberdeenadvisors.com","password":"conductor2026"}'
-
-   curl -b /tmp/liv.txt -X PUT \
-     localhost:3000/api/engagements/eng_northwind/opportunities/opp_017/score \
-     -H 'content-type: application/json' \
-     -d '{"financialImpact":5,"riskIfDeferred":4,"strategicAlignment":4}'
-   ```
-
-   OPP-017 moves from 3.25 / Medium Priority / Plan & Fund to 4.40 / High Priority / Act Now, and the
-   theme roll-up and band counts on **Overview** move with it. Nothing derived was written — only the
-   three integers changed.
+   OPP-017 moves from 3.25 / Medium Priority / Plan & Fund to 4.40 / High Priority / Act Now — the
+   panel on that screen reports the weighted score, the priority band, both axes and the quadrant —
+   and the theme roll-up and band counts on **Overview** move with it. Nothing derived was written:
+   only the three integers changed, and `PUT …/opportunities/{id}/score` behind the form takes
+   nothing else.
 4. **Move an initiative between waves.** **Workspace › Roadmap** (`/workspace/roadmap`) reports a
    real dependency violation: *B2B Customer Portal* sits in Wave 2 but depends, hard
-   finish-to-start, on *Integration Layer Replatform*, which is also in Wave 2. Wave assignment is
-   also API-only in this build:
+   finish-to-start, on *Integration Layer Replatform*, which is also in Wave 2. The sequencing table
+   carries a wave selector for every initiative with its computed earliest possible wave beside it,
+   so move *B2B Customer Portal* to Wave 3 — the wave its hard dependencies actually allow.
 
-   ```bash
-   curl -b /tmp/liv.txt -X PATCH \
-     localhost:3000/api/engagements/eng_northwind/initiatives/init_b2b_portal \
-     -H 'content-type: application/json' -d '{"waveId":"wave_3"}'
-   ```
-
-   Refresh **Roadmap**: the violation clears, the portal card moves to Wave 3, and the two remaining
-   issues (an unsequenced *Warehouse Automation Pilot*, and *Master Data Foundation* blocking two
-   initiatives with no named owner) stay put with their minimum fixes.
+   The feasibility list re-renders on the same screen: the violation clears, the portal card moves to
+   Wave 3, and the two remaining issues (an unsequenced *Warehouse Automation Pilot*, and *Master
+   Data Foundation* blocking two initiatives with no named owner) stay put with their minimum fixes.
+   The same screen carries a dependency form (from, to, type, strength, rationale) and a remove
+   control on every dependency row; the server refuses a dependency that would close a cycle and the
+   refusal is surfaced as a message rather than swallowed.
 5. **Publish selected sections to the client.** **Workspace › Publish** (`/workspace/publish`).
    Version 1 deliberately excluded the initiatives and the roadmap, so tick *Initiatives* and
    *Roadmap*, leave the four client permissions on, write a note, and press **Publish version 2**.
@@ -106,15 +99,19 @@ be re-run from the top; it needs no authentication and returns the record counts
    shares, the highest-priority opportunities with the frozen scores, and any ranking her team has
    already given.
 7. **Read the published roadmap.** **Portal › Roadmap** (`/portal/roadmap`) shows the four waves
-   with the dependencies that drive the order and the reason recorded for each. **Portal ›
-   Initiatives** (`/portal/initiatives`) groups the same initiatives under their themes with the
-   rollup band, and **Portal › Decisions** (`/portal/decisions`) carries the four decisions with the
-   options considered. Both roadmap and initiatives appear here for the first time because of step 5
-   — before it, these screens explained that sequencing had not been published yet.
+   with the dependencies that drive the order and the reason recorded for each, and a theme filter
+   that narrows the sequence to one theme — the filter lives in the query string, so a filtered
+   roadmap is a URL an executive can send on. **Portal › Initiatives** (`/portal/initiatives`) groups
+   the same initiatives under their themes with the rollup band, and **Portal › Decisions**
+   (`/portal/decisions`) carries the four decisions with the options considered. Both roadmap and
+   initiatives appear here for the first time because of step 5 — before it, these screens explained
+   that sequencing had not been published yet.
 8. **Submit a comment and a ranking.** **Portal › My Feedback** (`/portal/feedback`). Comment on an
    opportunity, then rank one at position 1. Both are recorded as `pending` against snapshot version
    2 and listed underneath with their status. What a client may do is governed by the snapshot they
-   are answering, so the forms shown here follow the permissions ticked at publish time.
+   are answering, so the forms shown here follow the permissions ticked at publish time: the
+   dependency-suggestion form appears only because *Dependency suggestions* was left ticked at
+   publish time, and a snapshot published without that flag does not render the form at all.
 9. **Return to the Aberdeen queue and decide.** Sign back in as Liv and open **Workspace › Client
    Feedback** (`/workspace/client-feedback`). Accept the ranking — the queue reports exactly what it
    changed (`Set client rank 1 on OPP-0nn (was unranked)`) and writes an audit event — and reject the
@@ -154,7 +151,22 @@ npm run build        # production build with full type checking
 (4.5 / 3.75 / 2.8), the 3.5 quadrant threshold on both axes, a weight set that does not sum to 1.0,
 unassessed maturity areas excluded from means, dependency cycle detection, the seeded feasibility
 violations, and the shape of the version 1 snapshot. `npm run build` compiled clean with no type
-errors.
+errors, reporting 37 route entries.
+
+And run the whole demo path unattended, through a real browser:
+
+```bash
+npm run dev &                                                    # or any running instance
+python3 scripts/e2e-happy-path.py --base-url http://localhost:3000
+```
+
+`scripts/e2e-happy-path.py` drives all ten steps above through the UI with Playwright — signing in
+as both roles, rescoring through the scoring view, moving the wave, adding and removing a dependency,
+publishing, submitting client feedback, accepting one item and rejecting another, republishing — and
+asserts the role boundaries in the browser and again at the API level. It POSTs `/api/dev/reset`
+first, so it is repeatable from the seed (`--no-reset` skips that); it takes `--base-url` (default
+`http://localhost:3111`) and `--headed`; and it needs `playwright` pinned to `1.56.0`. The run in
+this clone printed `113 passed, 0 failed`.
 
 Optional environment variables:
 
@@ -167,9 +179,12 @@ Optional environment variables:
 
 **Stack.** Next.js 15.5.4 on the App Router with React 19.1.1, TypeScript 5.7 in strict mode, and
 Tailwind CSS v4 through `@tailwindcss/postcss`. Server components read the model directly, and
-interactivity is confined to a handful of client components — login, publish, the two review queues,
-the client feedback form, sign out, plus navigation and toasts. `tsx` runs the calculation checks.
-There is no ORM, no auth library, no state library and no component library.
+interactivity is confined to a handful of client components — login, publish, the scoring form, the
+roadmap wave selector and dependency controls, the two review queues, the client feedback form, the
+query-string filter bars, sign out, plus navigation and toasts. Filtering is done on the server from
+the query string, so a filtered view is a shareable URL rather than hidden rows, and `app/error.tsx`
+and `app/not-found.tsx` catch the rest so no page can show a stack trace. `tsx` runs the calculation
+checks. There is no ORM, no auth library, no state library and no component library.
 
 **Storage, and its honest limitation.** `lib/store.ts` is a single JSON document store: the whole
 database is one object held on a `globalThis` key, read synchronously from memory, mutated through
@@ -272,16 +287,20 @@ Scope decisions, taken deliberately for a hackathon build:
 - **No cost or capacity model.** The reference engagement carried effort as T-shirt sizes and span,
   and contained no cost model, no ROI and no capacity forecast. Inventing one and rendering it beside
   numbers traceable to the source would be fabrication, so effort stops at T-shirt size.
-- **No PowerPoint or Excel export.** The client portal is the generated deliverable; a board deck
-  rendered from a named snapshot is the obvious next step and is not built.
-- **Scoring and wave assignment are API-only.** `PUT …/opportunities/{id}/score` and
-  `PATCH …/initiatives/{id}` work and are exercised in the demo path, but the Opportunities and
-  Roadmap screens are read-only views over them — no inline editor, and no drag-to-rank. Client
-  ranking is a typed integer for the same reason.
+- **No PowerPoint or Excel generation from the model.** The client portal is the generated
+  deliverable; a board deck rendered from a named snapshot is the obvious next step and is not built.
+  The submission deck in `deck/` was authored by hand, not produced from the model.
+- **The write surface stops short of the fact base.** Scoring, wave assignment and dependency
+  create/delete are editable in the workspace UI, but there are no write endpoints for evidence or
+  findings and no editor over them, and ranking is a typed position rather than drag-to-rank —
+  client ranking and the register's order are both typed integers, with no drag-and-drop anywhere.
 - **AI Review offers accept and reject in the UI.** Accept-with-edits (`status: "edited"` with a
   replacement payload) exists in the API and is honoured, but has no form.
-- **The portal has no filtering or sorting controls.** Published content is grouped for reading —
-  waves on the roadmap, themes on initiatives — rather than filterable.
+- **Filtering covers two screens, and nothing sorts.** The opportunity register filters by theme,
+  capability area and priority band, and the published portal roadmap filters by theme, both through
+  the query string. Maturity, Initiatives, the Fact Base and portal initiatives are still grouped for
+  reading — waves on the roadmap, themes on initiatives — rather than filterable, and no screen
+  offers a sort control.
 - **`POST /api/dev/reset` is unauthenticated**, on purpose, so the demo can be reset from anywhere.
   It would not exist in a real deployment.
 - **No live deployment is claimed.** The reviewable path is the local run above.
@@ -292,13 +311,17 @@ Scope decisions, taken deliberately for a hackathon build:
 app/
   page.tsx                     Landing page with both sign-in cards and the demo credentials
   login/                       Sign in, with quick-fill for each seeded user
-  workspace/                   Aberdeen shell, aberdeen role only. Nine screens:
-                               Overview, Fact Base, Maturity, Opportunities, Initiatives,
-                               Roadmap, AI Review, Publish, Client Feedback
+  error.tsx, not-found.tsx     Error boundary and 404 page, so no failure shows a stack trace
+  workspace/                   Aberdeen shell, aberdeen role only. Ten routes under nine sidebar
+                               areas: Overview, Fact Base, Maturity, Opportunities, Initiatives,
+                               Roadmap, AI Review, Publish, Client Feedback — plus
+                               opportunities/[oppId], the per-opportunity scoring view, which is
+                               reached from the register rather than listed in the sidebar
   portal/                      Client shell, reads the latest snapshot only. Five screens:
                                Overview, Roadmap, Initiatives, Decisions, My Feedback
   api/                         19 route files, 20 handlers; each re-checks the role server-side
-components/                    Shell navigation, preview banner, and typed UI primitives
+components/                    Shell navigation, preview banner, FilterBar.tsx (query-string
+                               filtering), and typed UI primitives
 lib/
   types.ts                     The domain model and its invariants
   calc.ts                      Pure calculation engine — every derived number in the product
@@ -310,7 +333,10 @@ lib/
   api.ts, page.ts, nav.ts      Route-handler helpers, page guards, navigation
 middleware.ts                  Edge-runtime redirects for /workspace and /portal
 scripts/check-calc.ts          22 assertions over the engine and the seed
-docs/                          The two specifications behind the build
+scripts/e2e-happy-path.py      Playwright run of the whole demo path: 113 assertions
+deck/                          The four-slide submission deck
+docs/                          The two specifications behind the build, plus the client's
+                               one-pager and MVP specification
 ```
 
 The API surface, all under `/api`: `auth/login`, `auth/logout`, `auth/me`, `dev/reset`,
