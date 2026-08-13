@@ -36,6 +36,12 @@ const SELECTION_LABELS: Record<keyof PublishSelection, string> = {
   allowTimingFeedback: 'Timing feedback',
 };
 
+/** "a", "a and b", "a, b and c" — so the copy reads as a sentence rather than a list dump. */
+function formatList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 export default async function PublishPage() {
   const { view } = await requireWorkspace();
   const latest = view.latestSnapshot;
@@ -44,6 +50,20 @@ export default async function PublishPage() {
 
   // Default the next publication to everything, which is the point of the demo's second version.
   const initialSelection: PublishSelection = { ...DEFAULT_SELECTION };
+
+  // What the client cannot see today, named so the copy below stays true at every version.
+  const CONTENT_SECTIONS: { key: keyof PublishSelection; label: string }[] = [
+    { key: 'includeCurrentState', label: 'the current state' },
+    { key: 'includeMaturityHeatmap', label: 'the maturity heatmap' },
+    { key: 'includeOpportunities', label: 'the opportunity register' },
+    { key: 'includeScores', label: 'the scores' },
+    { key: 'includeInitiatives', label: 'the initiatives' },
+    { key: 'includeRoadmap', label: 'the roadmap' },
+    { key: 'includeDecisions', label: 'the decision log' },
+  ];
+  const omittedFromLatest = latest
+    ? CONTENT_SECTIONS.filter((section) => !latest.selection[section.key]).map((s) => s.label)
+    : [];
 
   return (
     <div className="space-y-8">
@@ -82,9 +102,11 @@ export default async function PublishPage() {
       <Card>
         <h3 className="text-[17px] mb-1">Publish version {nextVersion}</h3>
         <p className="text-[13.5px] text-[var(--color-slate)] mb-5 max-w-[80ch]">
-          Version {view.engagement.publishedVersion ?? 0} deliberately left out the roadmap and the
-          initiatives. Ticking them here is what makes the sequencing visible to the client for the
-          first time.
+          {latest === null
+            ? 'Nothing has been published yet, so the client portal is empty. Whatever is ticked here is the first thing they will see.'
+            : omittedFromLatest.length === 0
+              ? `Version ${latest.version} publishes everything. Untick anything the client should not see in version ${nextVersion}.`
+              : `Version ${latest.version} left out ${formatList(omittedFromLatest)}. Ticking ${omittedFromLatest.length === 1 ? 'it' : 'them'} here is what makes ${omittedFromLatest.length === 1 ? 'it' : 'them'} visible to the client for the first time.`}
         </p>
         <PublishForm
           engagementId={view.engagement.id}

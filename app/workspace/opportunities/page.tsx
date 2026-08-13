@@ -1,3 +1,6 @@
+import Link from 'next/link';
+
+import { FilterBar } from '@/components/FilterBar';
 import {
   Badge,
   BandBadge,
@@ -15,15 +18,37 @@ import {
 } from '@/components/ui';
 import { requireWorkspace } from '@/lib/page';
 import { BAND_LABELS } from '@/lib/types';
+import type { BandLabel } from '@/lib/types';
 
 export const metadata = { title: 'Opportunities — Conductor' };
 
-export default async function OpportunitiesPage() {
+/** `?theme=&area=&band=` — filtering happens on the server, so a filtered register is a URL. */
+export default async function OpportunitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { view } = await requireWorkspace();
+  const query = await searchParams;
+  const one = (key: string): string => {
+    const value = query[key];
+    return typeof value === 'string' ? value : '';
+  };
+  const themeFilter = one('theme');
+  const areaFilter = one('area');
+  const bandFilter = one('band');
+
   const model = view.scoringModel;
-  const rows = [...view.opportunityRows].sort(
+  const all = [...view.opportunityRows].sort(
     (a, b) => (b.derived?.weighted ?? 0) - (a.derived?.weighted ?? 0),
   );
+  const rows = all.filter(
+    (row) =>
+      (themeFilter === '' || row.theme?.id === themeFilter) &&
+      (areaFilter === '' || row.capabilityArea?.id === areaFilter) &&
+      (bandFilter === '' || row.derived?.band === (bandFilter as BandLabel)),
+  );
+  const filtered = rows.length !== all.length;
   const countByBand = BAND_LABELS.map((band) => ({
     band,
     count: rows.filter((r) => r.derived?.band === band).length,
@@ -34,7 +59,30 @@ export default async function OpportunitiesPage() {
       <SectionHeader
         eyebrow="Phase 4 · Opportunity register"
         title="Opportunities"
-        description={`${rows.length} opportunities scored against ${model.name}. Only the three integer dimension scores are stored; the weighted score, band, axes and quadrant are recomputed on every read, so they can never drift from the inputs.`}
+        description={`${rows.length}${filtered ? ` of ${all.length}` : ''} opportunities scored against ${model.name}. Only the three integer dimension scores are stored; the weighted score, band, axes and quadrant are recomputed on every read, so they can never drift from the inputs.`}
+      />
+
+      <FilterBar
+        filters={[
+          {
+            param: 'theme',
+            label: 'Theme',
+            anyLabel: 'All themes',
+            options: view.themes.map((theme) => ({ value: theme.id, label: theme.name })),
+          },
+          {
+            param: 'area',
+            label: 'Capability area',
+            anyLabel: 'All capability areas',
+            options: view.capabilityAreas.map((area) => ({ value: area.id, label: area.name })),
+          },
+          {
+            param: 'band',
+            label: 'Priority band',
+            anyLabel: 'All bands',
+            options: BAND_LABELS.map((band) => ({ value: band, label: band })),
+          },
+        ]}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -44,7 +92,11 @@ export default async function OpportunitiesPage() {
             label={band}
             value={count}
             tone={band === 'Critical' ? 'critical' : band === 'High Priority' ? 'amber' : 'default'}
-            hint={`${Math.round((count / rows.length) * 100)}% of the register`}
+            hint={
+              rows.length === 0
+                ? 'Nothing matches the filter'
+                : `${Math.round((count / rows.length) * 100)}% of the ${filtered ? 'filtered ' : ''}register`
+            }
           />
         ))}
       </div>
@@ -91,7 +143,7 @@ export default async function OpportunitiesPage() {
       <Card flush>
         <CardHeader
           title="Register"
-          hint="Sorted by weighted score. Theme is derived through the initiative."
+          hint={`Sorted by weighted score. Theme is derived through the initiative. Open any row to score it against the anchor rubric.${filtered ? ` Filtered to ${rows.length} of ${all.length}.` : ''}`}
         />
         <Table>
           <THead>
@@ -113,9 +165,23 @@ export default async function OpportunitiesPage() {
           <TBody>
             {rows.map((row) => (
               <TR key={row.opportunity.id}>
-                <TD className="tabular text-[var(--color-slate)]">{row.opportunity.displayCode}</TD>
+                <TD className="tabular text-[var(--color-slate)] whitespace-nowrap align-top">
+                  <Link
+                    href={`/workspace/opportunities/${row.opportunity.id}`}
+                    className="underline decoration-[var(--color-line-strong)] hover:text-[var(--color-ink)]"
+                  >
+                    {row.opportunity.displayCode}
+                  </Link>
+                </TD>
                 <TD>
-                  <p className="font-medium">{row.opportunity.title}</p>
+                  <p className="font-medium">
+                    <Link
+                      href={`/workspace/opportunities/${row.opportunity.id}`}
+                      className="hover:underline"
+                    >
+                      {row.opportunity.title}
+                    </Link>
+                  </p>
                   <p className="text-[12.5px] text-[var(--color-slate)] mt-0.5 max-w-[54ch]">
                     {row.opportunity.description}
                   </p>
@@ -150,6 +216,13 @@ export default async function OpportunitiesPage() {
                 </TD>
               </TR>
             ))}
+            {rows.length === 0 ? (
+              <TR>
+                <TD colSpan={12} className="text-center text-[var(--color-slate)] py-6">
+                  No opportunity matches this filter. Clear it to see the whole register.
+                </TD>
+              </TR>
+            ) : null}
           </TBody>
         </Table>
       </Card>

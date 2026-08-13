@@ -84,6 +84,7 @@ export function PublishForm({
             {CONTENT_KEYS.map((item) => (
               <Checkbox
                 key={item.key}
+                testId={`publish-${item.key}`}
                 label={item.label}
                 hint={item.hint}
                 checked={selection[item.key]}
@@ -98,6 +99,7 @@ export function PublishForm({
             {PERMISSION_KEYS.map((item) => (
               <Checkbox
                 key={item.key}
+                testId={`publish-${item.key}`}
                 label={item.label}
                 hint={item.hint}
                 checked={selection[item.key]}
@@ -123,7 +125,12 @@ export function PublishForm({
       </Field>
 
       <div className="flex items-center gap-4">
-        <Button variant="primary" disabled={busy} onClick={() => void publish()}>
+        <Button
+          variant="primary"
+          data-testid="publish-now"
+          disabled={busy}
+          onClick={() => void publish()}
+        >
           {busy ? 'Publishing…' : `Publish version ${nextVersion}`}
         </Button>
         <p className="text-[12.5px] text-[var(--color-slate)]">
@@ -140,16 +147,19 @@ function Checkbox({
   hint,
   checked,
   onChange,
+  testId,
 }: {
   label: string;
   hint: string;
   checked: boolean;
   onChange: () => void;
+  testId?: string;
 }) {
   return (
     <label className="flex items-start gap-2.5 cursor-pointer">
       <input
         type="checkbox"
+        data-testid={testId}
         checked={checked}
         onChange={onChange}
         className="mt-1 h-3.5 w-3.5 accent-[var(--color-ink)]"

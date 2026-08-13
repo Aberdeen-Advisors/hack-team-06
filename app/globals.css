@@ -122,10 +122,19 @@ a {
 
 input,
 select,
-textarea,
-button {
+textarea {
   font: inherit;
   color: inherit;
+}
+
+/*
+ * Buttons inherit the font but never the colour. An unlayered `color` declaration here beats any
+ * Tailwind utility — unlayered CSS always wins over `@layer utilities` — so `color: inherit` on
+ * button silently overrode `text-white` on the primary variant and left every primary button with
+ * an invisible label on its dark fill.
+ */
+button {
+  font: inherit;
 }
 
 :focus-visible {

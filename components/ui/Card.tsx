@@ -5,11 +5,14 @@ export interface CardProps {
   className?: string;
   /** Removes the inner padding so a table can sit flush inside the card. */
   flush?: boolean;
+  /** Stable hook for the end-to-end script, so it can scope assertions to one card. */
+  testId?: string;
 }
 
-export function Card({ children, className = '', flush = false }: CardProps) {
+export function Card({ children, className = '', flush = false, testId }: CardProps) {
   return (
     <section
+      data-testid={testId}
       className={`bg-white border border-[var(--color-line)] rounded-[4px] ${flush ? '' : 'p-5'} ${className}`}
       style={{ boxShadow: 'var(--shadow-card)' }}
     >

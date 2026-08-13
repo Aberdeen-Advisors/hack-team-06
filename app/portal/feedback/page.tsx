@@ -97,10 +97,12 @@ export default async function PortalFeedbackPage() {
               comments: snapshot.selection.allowComments,
               ranking: snapshot.selection.allowRanking,
               timing: snapshot.selection.allowTimingFeedback,
+              dependencies: snapshot.selection.allowDependencySuggestions,
             }}
           />
           {!snapshot.selection.allowComments &&
           !snapshot.selection.allowRanking &&
+          !snapshot.selection.allowDependencySuggestions &&
           !snapshot.selection.allowTimingFeedback ? (
             <p className="text-[13.5px] text-[var(--color-slate)]">
               This version was published as read-only, so there is nothing to submit against it.

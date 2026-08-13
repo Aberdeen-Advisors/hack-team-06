@@ -14,12 +14,23 @@ import {
 } from '@/components/ui';
 import { formatDate, requireWorkspace, titleCase } from '@/lib/page';
 
+import { DeleteDependencyButton, DependencyForm, WaveSelect } from './RoadmapEditors';
+
 export const metadata = { title: 'Roadmap — Conductor' };
 
 export default async function RoadmapPage() {
   const { view } = await requireWorkspace();
   const unassigned = view.initiativeRows.filter((r) => r.wave === null);
   const nameOf = (id: string) => view.initiatives.find((i) => i.id === id)?.name ?? id;
+  const waveOptions = view.waves.map((w) => ({ id: w.id, label: w.label }));
+  const initiativeOptions = [...view.initiatives]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((i) => ({ id: i.id, label: i.name }));
+  const sequencing = [...view.initiativeRows].sort(
+    (a, b) =>
+      (a.wave?.sequence ?? 99) - (b.wave?.sequence ?? 99) ||
+      a.initiative.name.localeCompare(b.initiative.name),
+  );
 
   return (
     <div className="space-y-8">
@@ -89,7 +100,7 @@ export default async function RoadmapPage() {
         {view.waves.map((wave) => {
           const rows = view.initiativeRows.filter((r) => r.wave?.id === wave.id);
           return (
-            <Card key={wave.id} flush className="flex flex-col">
+            <Card key={wave.id} flush className="flex flex-col" testId={`wave-card-${wave.id}`}>
               <div className="px-4 pt-4 pb-3 border-b border-[var(--color-line)]">
                 <p className="label">{`${formatDate(wave.startsOn)} – ${formatDate(wave.endsOn)}`}</p>
                 <h3 className="text-[16px] mt-1">{wave.label}</h3>
@@ -121,45 +132,60 @@ export default async function RoadmapPage() {
         })}
       </div>
 
-      {unassigned.length > 0 ? (
-        <Card flush>
-          <CardHeader
-            title="Not yet sequenced"
-            hint="These initiatives do not appear on the roadmap at all."
-          />
-          <Table>
-            <THead>
-              <TR>
-                <TH>Initiative</TH>
-                <TH>Theme</TH>
-                <TH align="center">Size</TH>
-                <TH align="right">Earliest possible wave</TH>
+      <Card flush>
+        <CardHeader
+          title="Sequencing"
+          hint={`Move an initiative between waves here. The earliest column is the first wave its hard dependencies allow; ${unassigned.length} initiative(s) are not sequenced at all.`}
+        />
+        <Table>
+          <THead>
+            <TR>
+              <TH>Initiative</TH>
+              <TH>Theme</TH>
+              <TH align="center">Size</TH>
+              <TH align="right">Earliest possible</TH>
+              <TH>Wave</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {sequencing.map((row) => (
+              <TR key={row.initiative.id}>
+                <TD className="font-medium">{row.initiative.name}</TD>
+                <TD className="text-[var(--color-slate)] text-[13px]">{row.theme?.name ?? '—'}</TD>
+                <TD align="center">
+                  <Badge tone="neutral">{row.initiative.tShirtSize}</Badge>
+                </TD>
+                <TD align="right" className="tabular text-[13px]">
+                  {view.waves.find((w) => w.sequence === row.earliestWaveSequence)?.label ??
+                    `Wave ${row.earliestWaveSequence}`}
+                </TD>
+                <TD className="no-print">
+                  <WaveSelect
+                    engagementId={view.engagement.id}
+                    initiativeId={row.initiative.id}
+                    initiativeName={row.initiative.name}
+                    waves={waveOptions}
+                    current={row.wave?.id ?? null}
+                  />
+                </TD>
               </TR>
-            </THead>
-            <TBody>
-              {unassigned.map((row) => (
-                <TR key={row.initiative.id}>
-                  <TD className="font-medium">{row.initiative.name}</TD>
-                  <TD className="text-[var(--color-slate)]">{row.theme?.name ?? '—'}</TD>
-                  <TD align="center">
-                    <Badge tone="neutral">{row.initiative.tShirtSize}</Badge>
-                  </TD>
-                  <TD align="right" className="tabular">
-                    {view.waves.find((w) => w.sequence === row.earliestWaveSequence)?.label ??
-                      `Wave ${row.earliestWaveSequence}`}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </Card>
-      ) : null}
+            ))}
+          </TBody>
+        </Table>
+      </Card>
 
       <Card flush>
         <CardHeader
           title="Dependencies"
           hint="Hard finish-to-start and enables dependencies constrain sequencing; soft ones are advisory."
         />
+        <div className="px-5 py-4 border-b border-[var(--color-line)] no-print">
+          <h4 className="text-[15px] mb-3">Add a dependency</h4>
+          <DependencyForm
+            engagementId={view.engagement.id}
+            initiatives={initiativeOptions}
+          />
+        </div>
         <Table>
           <THead>
             <TR>
@@ -169,6 +195,7 @@ export default async function RoadmapPage() {
               <TH>Strength</TH>
               <TH>Source</TH>
               <TH>Rationale</TH>
+              <TH align="right">&nbsp;</TH>
             </TR>
           </THead>
           <TBody>
@@ -189,6 +216,13 @@ export default async function RoadmapPage() {
                 </TD>
                 <TD className="text-[13px] text-[var(--color-slate)] max-w-[54ch]">
                   {dependency.rationale}
+                </TD>
+                <TD align="right" className="no-print">
+                  <DeleteDependencyButton
+                    engagementId={view.engagement.id}
+                    dependencyId={dependency.id}
+                    label={`"${nameOf(dependency.fromInitiativeId)}" to "${nameOf(dependency.toInitiativeId)}"`}
+                  />
                 </TD>
               </TR>
             ))}

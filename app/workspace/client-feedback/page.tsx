@@ -1,5 +1,4 @@
 import {
-  Badge,
   Card,
   CardHeader,
   EmptyState,
@@ -36,6 +35,55 @@ export default async function ClientFeedbackPage() {
     return titleCase(targetType);
   };
 
+  const initiativeName = (id: unknown): string =>
+    view.initiatives.find((i) => i.id === id)?.name ?? String(id);
+  const waveLabel = (id: unknown): string =>
+    view.waves.find((w) => w.id === id)?.label ?? String(id);
+
+  /**
+   * A submission's payload read back in the reviewer's language rather than as raw ids — this is
+   * the screen where a consultant decides whether to apply it, so it has to be legible.
+   */
+  const payloadFacts = (
+    payload: unknown,
+    body: string,
+  ): { label: string; value: string }[] => {
+    if (payload === null || typeof payload !== 'object') return [];
+    const facts: { label: string; value: string }[] = [];
+    for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+      if (value === null || value === undefined || value === '') continue;
+      switch (key) {
+        case 'clientRank':
+          facts.push({ label: 'Requested client rank', value: String(value) });
+          break;
+        case 'waveId':
+          facts.push({ label: 'Requested wave', value: waveLabel(value) });
+          break;
+        case 'fromInitiativeId':
+          facts.push({ label: 'Must happen first', value: initiativeName(value) });
+          break;
+        case 'toInitiativeId':
+          facts.push({ label: 'Before', value: initiativeName(value) });
+          break;
+        case 'type':
+          facts.push({ label: 'Dependency type', value: titleCase(String(value)) });
+          break;
+        case 'strength':
+          facts.push({ label: 'Strength', value: String(value) });
+          break;
+        case 'rationale':
+          // The client's own words are already quoted above; do not repeat them.
+          if (String(value).trim() !== body.trim()) {
+            facts.push({ label: 'Rationale', value: String(value) });
+          }
+          break;
+        default:
+          facts.push({ label: titleCase(key), value: String(value) });
+      }
+    }
+    return facts;
+  };
+
   return (
     <div className="space-y-8">
       <SectionHeader
@@ -64,7 +112,7 @@ export default async function ClientFeedbackPage() {
       ) : (
         <div className="space-y-5">
           {pending.map((submission) => (
-            <Card key={submission.id} flush>
+            <Card key={submission.id} flush testId={`submission-${submission.id}`}>
               <CardHeader
                 title={`${titleCase(submission.kind)} — ${targetLabel(submission.targetType, submission.targetId)}`}
                 hint={`${submission.submittedByName} · against published version ${submission.snapshotVersion} · ${formatDateTime(submission.submittedAt)}`}
@@ -76,16 +124,15 @@ export default async function ClientFeedbackPage() {
                     &ldquo;{submission.body}&rdquo;
                   </p>
                 ) : null}
-                {submission.payload !== null && typeof submission.payload === 'object' ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {Object.entries(submission.payload as Record<string, unknown>).map(
-                      ([key, value]) => (
-                        <Badge key={key} tone="slate">
-                          {key.replace(/([A-Z])/g, ' $1')}: {String(value)}
-                        </Badge>
-                      ),
-                    )}
-                  </div>
+                {payloadFacts(submission.payload, submission.body).length > 0 ? (
+                  <dl className="mt-3.5 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 max-w-[80ch]">
+                    {payloadFacts(submission.payload, submission.body).map((fact) => (
+                      <div key={fact.label} className="flex items-baseline gap-2">
+                        <dt className="label shrink-0">{fact.label}</dt>
+                        <dd className="text-[13.5px]">{fact.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 ) : null}
               </div>
               <div className="px-5 py-3.5 border-t border-[var(--color-line)] bg-[var(--color-canvas)] no-print">

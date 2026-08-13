@@ -25,6 +25,7 @@ export function FeedbackForm({
     comments: boolean;
     ranking: boolean;
     timing: boolean;
+    dependencies: boolean;
   };
 }) {
   const router = useRouter();
@@ -38,6 +39,9 @@ export function FeedbackForm({
   const [timingInitiative, setTimingInitiative] = useState(initiatives[0]?.id ?? '');
   const [timingWave, setTimingWave] = useState(waves[0]?.id ?? '');
   const [timingBody, setTimingBody] = useState('');
+  const [depFrom, setDepFrom] = useState(initiatives[0]?.id ?? '');
+  const [depTo, setDepTo] = useState(initiatives[1]?.id ?? '');
+  const [depBody, setDepBody] = useState('');
 
   async function submit(payload: Record<string, unknown>, success: string, reset: () => void) {
     setBusy(true);
@@ -64,57 +68,131 @@ export function FeedbackForm({
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      {allow.comments && opportunities.length > 0 ? (
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit(
-              {
-                kind: 'comment',
-                targetType: 'opportunity',
-                targetId: commentTarget,
-                body: commentBody,
-              },
-              'Comment sent to your advisory team.',
-              () => setCommentBody(''),
-            );
-          }}
-        >
-          <h3 className="text-[16px]">Comment on an opportunity</h3>
-          <Field label="Opportunity" htmlFor="comment-target">
-            <Select
-              id="comment-target"
-              value={commentTarget}
-              onChange={(event) => setCommentTarget(event.target.value)}
+      <div className="space-y-8">
+        {allow.comments && opportunities.length > 0 ? (
+          <form
+            className="space-y-3"
+            data-testid="form-comment"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit(
+                {
+                  kind: 'comment',
+                  targetType: 'opportunity',
+                  targetId: commentTarget,
+                  body: commentBody,
+                },
+                'Comment sent to your advisory team.',
+                () => setCommentBody(''),
+              );
+            }}
+          >
+            <h3 className="text-[16px]">Comment on an opportunity</h3>
+            <Field label="Opportunity" htmlFor="comment-target">
+              <Select
+                id="comment-target"
+                value={commentTarget}
+                onChange={(event) => setCommentTarget(event.target.value)}
+              >
+                {opportunities.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Your comment" htmlFor="comment-body">
+              <Textarea
+                id="comment-body"
+                rows={4}
+                required
+                value={commentBody}
+                onChange={(event) => setCommentBody(event.target.value)}
+                placeholder="What is missing, wrong, or needs a caveat?"
+              />
+            </Field>
+            <Button type="submit" variant="primary" disabled={busy || commentBody.trim() === ''}>
+              {busy ? 'Sending…' : 'Send comment'}
+            </Button>
+          </form>
+        ) : null}
+        {allow.dependencies && initiatives.length > 1 ? (
+          <form
+            className="space-y-3"
+            data-testid="form-dependency"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit(
+                {
+                  kind: 'dependency_suggestion',
+                  targetType: 'roadmap',
+                  targetId: null,
+                  body: depBody,
+                  payload: {
+                    fromInitiativeId: depFrom,
+                    toInitiativeId: depTo,
+                    strength: 'soft',
+                    type: 'finish_to_start',
+                    rationale: depBody,
+                  },
+                },
+                'Dependency suggestion sent to your advisory team.',
+                () => setDepBody(''),
+              );
+            }}
+          >
+            <h3 className="text-[16px]">Suggest a dependency</h3>
+            <Field label="This must happen first" htmlFor="dep-suggest-from">
+              <Select
+                id="dep-suggest-from"
+                value={depFrom}
+                onChange={(event) => setDepFrom(event.target.value)}
+              >
+                {initiatives.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Before this" htmlFor="dep-suggest-to">
+              <Select
+                id="dep-suggest-to"
+                value={depTo}
+                onChange={(event) => setDepTo(event.target.value)}
+              >
+                {initiatives.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Why"
+              htmlFor="dep-suggest-body"
+              hint="Your advisory team decides whether to add it; one that would create a circular chain is refused."
             >
-              {opportunities.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Your comment" htmlFor="comment-body">
-            <Textarea
-              id="comment-body"
-              rows={4}
-              required
-              value={commentBody}
-              onChange={(event) => setCommentBody(event.target.value)}
-              placeholder="What is missing, wrong, or needs a caveat?"
-            />
-          </Field>
-          <Button type="submit" variant="primary" disabled={busy || commentBody.trim() === ''}>
-            {busy ? 'Sending…' : 'Send comment'}
-          </Button>
-        </form>
-      ) : null}
+              <Textarea
+                id="dep-suggest-body"
+                rows={3}
+                value={depBody}
+                onChange={(event) => setDepBody(event.target.value)}
+                placeholder="What breaks if these two run in the other order?"
+              />
+            </Field>
+            <Button type="submit" variant="primary" disabled={busy}>
+              {busy ? 'Sending…' : 'Send dependency suggestion'}
+            </Button>
+          </form>
+        ) : null}
+      </div>
 
       <div className="space-y-8">
         {allow.ranking && opportunities.length > 0 ? (
           <form
             className="space-y-3"
+            data-testid="form-ranking"
             onSubmit={(event) => {
               event.preventDefault();
               void submit(
@@ -168,6 +246,7 @@ export function FeedbackForm({
         {allow.timing && initiatives.length > 0 && waves.length > 0 ? (
           <form
             className="space-y-3"
+            data-testid="form-timing"
             onSubmit={(event) => {
               event.preventDefault();
               void submit(

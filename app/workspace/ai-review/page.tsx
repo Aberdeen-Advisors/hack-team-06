@@ -13,15 +13,30 @@ import { SuggestionActions } from './SuggestionActions';
 
 export const metadata = { title: 'AI Review — Conductor' };
 
-/** Renders a suggestion payload as readable lines rather than raw JSON. */
-function PayloadLines({ payload }: { payload: unknown }) {
+/**
+ * Renders a suggestion payload as readable lines rather than raw JSON. Any key that holds an
+ * entity id is resolved to that entity's name — a reviewer should never have to decode
+ * `init_master_data` to decide whether to accept a proposal.
+ */
+function PayloadLines({
+  payload,
+  resolve,
+}: {
+  payload: unknown;
+  resolve: (key: string, value: string) => string;
+}) {
   if (payload === null || typeof payload !== 'object') return null;
   const entries = Object.entries(payload as Record<string, unknown>);
+  const label = (key: string) =>
+    key
+      .replace(/Id$/, '')
+      .replace(/([A-Z])/g, ' $1')
+      .trim();
   return (
     <dl className="mt-3 space-y-1">
       {entries.map(([key, value]) => (
         <div key={key} className="flex gap-2 text-[13px]">
-          <dt className="label shrink-0 w-[168px] pt-0.5">{key.replace(/([A-Z])/g, ' $1')}</dt>
+          <dt className="label shrink-0 w-[168px] pt-0.5">{label(key)}</dt>
           <dd className="text-[var(--color-ink-soft)]">
             {typeof value === 'object' && value !== null
               ? Object.entries(value as Record<string, unknown>).map(([k, v]) => (
@@ -30,7 +45,7 @@ function PayloadLines({ payload }: { payload: unknown }) {
                     {String(v)}
                   </span>
                 ))
-              : String(value)}
+              : resolve(key, String(value))}
           </dd>
         </div>
       ))}
@@ -56,6 +71,27 @@ export default async function AiReviewPage() {
       return view.maturityRows.find((r) => r.focusArea.id === targetId)?.focusArea.name ?? targetId;
     }
     return view.engagement.clientName;
+  };
+
+  /** Turns an id-bearing payload value into the name of the thing it points at. */
+  const resolvePayloadValue = (key: string, value: string): string => {
+    if (key.endsWith('InitiativeId')) {
+      return view.initiatives.find((i) => i.id === value)?.name ?? value;
+    }
+    if (key.endsWith('OpportunityId') || key === 'opportunityId') {
+      const opp = view.opportunities.find((o) => o.id === value);
+      return opp ? `${opp.displayCode} ${opp.title}` : value;
+    }
+    if (key === 'waveId') {
+      return view.waves.find((w) => w.id === value)?.label ?? value;
+    }
+    if (key === 'themeId') {
+      return view.themes.find((t) => t.id === value)?.name ?? value;
+    }
+    if (key === 'focusAreaId') {
+      return view.maturityRows.find((r) => r.focusArea.id === value)?.focusArea.name ?? value;
+    }
+    return value;
   };
 
   return (
@@ -104,7 +140,7 @@ export default async function AiReviewPage() {
                 <p className="text-[13.5px] text-[var(--color-ink-soft)] max-w-[86ch]">
                   {suggestion.rationale}
                 </p>
-                <PayloadLines payload={suggestion.payload} />
+                <PayloadLines payload={suggestion.payload} resolve={resolvePayloadValue} />
                 {suggestion.evidenceIds.length > 0 ? (
                   <div className="mt-4 border-t border-[var(--color-line)] pt-3">
                     <p className="label mb-1.5">Evidence cited</p>

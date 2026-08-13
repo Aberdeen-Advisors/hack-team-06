@@ -1,3 +1,4 @@
+import { FilterBar } from '@/components/FilterBar';
 import {
   Badge,
   Card,
@@ -13,8 +14,15 @@ import {
 } from '@/components/ui';
 import { formatDate, requirePortal, titleCase } from '@/lib/page';
 
-export default async function PortalRoadmapPage() {
+/** `?theme=` lets the client read the sequence one theme at a time. */
+export default async function PortalRoadmapPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { snapshot } = await requirePortal();
+  const query = await searchParams;
+  const themeFilter = typeof query.theme === 'string' ? query.theme : '';
 
   if (!snapshot || !snapshot.selection.includeRoadmap || snapshot.payload.waves.length === 0) {
     return (
@@ -37,13 +45,38 @@ export default async function PortalRoadmapPage() {
 
   const payload = snapshot.payload;
   const nameOf = (id: string) => payload.initiatives.find((i) => i.id === id)?.name ?? id;
+  const themeOf = (id: string) => payload.initiatives.find((i) => i.id === id)?.themeId ?? null;
+  const inFilter = (initiativeId: string) =>
+    themeFilter === '' || themeOf(initiativeId) === themeFilter;
+  const themeName = payload.themes.find((t) => t.id === themeFilter)?.name ?? null;
+  const dependencies = payload.dependencies.filter(
+    (d) => inFilter(d.fromInitiativeId) || inFilter(d.toInitiativeId),
+  );
 
   return (
     <div className="space-y-8">
       <SectionHeader
         eyebrow={`Published version ${snapshot.version}`}
         title="Roadmap"
-        description="The sequence as published, with the dependencies that drive it."
+        description={
+          themeName
+            ? `The sequence as published, showing only the ${themeName} theme and the dependencies that touch it.`
+            : 'The sequence as published, with the dependencies that drive it.'
+        }
+      />
+
+      <FilterBar
+        filters={[
+          {
+            param: 'theme',
+            label: 'Theme',
+            anyLabel: 'All themes',
+            options: payload.themes
+              .slice()
+              .sort((a, b) => a.sequence - b.sequence)
+              .map((theme) => ({ value: theme.id, label: theme.name })),
+          },
+        ]}
       />
 
       <div className="grid gap-5 lg:grid-cols-4 sm:grid-cols-2">
@@ -51,9 +84,11 @@ export default async function PortalRoadmapPage() {
           .slice()
           .sort((a, b) => a.sequence - b.sequence)
           .map((wave) => {
-            const initiatives = payload.initiatives.filter((i) => i.waveId === wave.id);
+            const initiatives = payload.initiatives.filter(
+              (i) => i.waveId === wave.id && inFilter(i.id),
+            );
             return (
-              <Card key={wave.id} flush className="flex flex-col">
+              <Card key={wave.id} flush className="flex flex-col" testId={`wave-card-${wave.id}`}>
                 <div className="px-4 pt-4 pb-3 border-b border-[var(--color-line)]">
                   <p className="label">{`${formatDate(wave.startsOn)} – ${formatDate(wave.endsOn)}`}</p>
                   <h3 className="text-[16px] mt-1">{wave.label}</h3>
@@ -75,7 +110,7 @@ export default async function PortalRoadmapPage() {
                   ))}
                   {initiatives.length === 0 ? (
                     <li className="px-4 py-6 text-[13px] text-[var(--color-slate-light)] text-center">
-                      Nothing sequenced in this wave
+                      {themeName ? `No ${themeName} work in this wave` : 'Nothing sequenced in this wave'}
                     </li>
                   ) : null}
                 </ul>
@@ -84,7 +119,7 @@ export default async function PortalRoadmapPage() {
           })}
       </div>
 
-      {payload.dependencies.length > 0 ? (
+      {dependencies.length > 0 ? (
         <Card flush>
           <CardHeader
             title="Why the order is what it is"
@@ -100,7 +135,7 @@ export default async function PortalRoadmapPage() {
               </TR>
             </THead>
             <TBody>
-              {payload.dependencies.map((dependency) => (
+              {dependencies.map((dependency) => (
                 <TR key={dependency.id}>
                   <TD className="font-medium">{nameOf(dependency.fromInitiativeId)}</TD>
                   <TD className="font-medium">{nameOf(dependency.toInitiativeId)}</TD>

@@ -60,6 +60,7 @@ export function SubmissionActions({
       <Button
         size="sm"
         variant="primary"
+        data-testid="accept-submission"
         disabled={busy !== null}
         onClick={() => void review('accepted')}
       >
@@ -68,6 +69,7 @@ export function SubmissionActions({
       <Button
         size="sm"
         variant="danger"
+        data-testid="reject-submission"
         disabled={busy !== null}
         onClick={() => void review('rejected')}
       >
